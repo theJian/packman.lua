@@ -157,7 +157,31 @@ function! lp#up(...)
 endfunction
 
 function! lp#rm(...)
+    let config = s:readConfig()
+    let packages = get(config, 'packages', {})
+    let packages_to_remove = s:normalizePackageArgs(config, a:000)
 
+    if packages_to_remove is 0
+        return
+    endif
+
+    let total = len(packages_to_remove)
+    let done = 0
+    for pack in packages_to_remove
+        echomsg printf('Deleting %s.', pack)
+        let packtype = get(packages[pack], 'opt') == v:true ? 'opt' : 'start'
+        let path = s:getPackagePath(pack, packtype)
+
+        unlet packages[pack]
+        if delete(path.dir, 'rf') != 0
+            call s:err(printf('Delete failed: %s.', pack))
+        endif
+        let done = done + 1
+    endfor
+
+    call s:writeConfig(config)
+
+    echomsg 'Successfully deleted'
 endfunction
 
 function! lp#i()
