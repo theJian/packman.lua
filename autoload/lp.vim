@@ -184,8 +184,25 @@ function! lp#rm(...)
     echomsg 'Successfully deleted'
 endfunction
 
-function! lp#i()
+function! lp#i(source, ...)
+    let config = s:readConfig()
+    let packages = get(config, 'packages', {})
+    let defaultName = fnamemodify(a:source, ':t:s?\.git$??')
+    let name = get(a:000, 0, defaultName)
+    let path = s:getPackagePath(name, 'start')
+    let packages[name] = { 'source': a:source }
 
+    echomsg 'Downloading from ' . a:source
+    let output = system('git clone ' . a:source . ' ' . path.dir . ' --quiet')
+
+    if v:shell_error
+        call s:err("Download failed. \n" . output)
+        return
+    endif
+
+    call s:writeConfig(config)
+
+    echomsg printf('Successfully installed: %s', name)
 endfunction
 
 function! lp#init()
