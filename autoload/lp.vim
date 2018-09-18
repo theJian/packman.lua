@@ -86,6 +86,26 @@ function! s:getRemoteUrl(pack)
     return url
 endfunction
 
+function! s:normalizePackageArgs(config, raw_args)
+    let packages = get(a:config, 'packages', {})
+    let args = a:raw_args
+
+    if len(args) > 0
+        for pack in args
+            if !has_key(packages, pack)
+                call s:err(printf('Unable to find package %s. Use PackInstall to install plugin.', pack))
+                return
+            endif
+        endfor
+    endif
+
+    if len(args) == 0
+        let args = keys(packages)
+    endif
+
+    return args
+endfunction
+
 function! lp#version()
     echo 'lightpack version ' . s:version
 endfunction
@@ -108,19 +128,10 @@ endfunction
 function! lp#up(...)
     let config = s:readConfig()
     let packages = get(config, 'packages', {})
-    let packages_to_update = a:000
+    let packages_to_update = s:normalizePackageArgs(config, a:000)
 
-    if len(packages_to_update) > 0
-        for pack in packages_to_update
-            if !has_key(packages, pack)
-                call s:err(printf('Unable to find package %s. Use PackInstall to install plugin.', pack))
-                return
-            endif
-        endfor
-    endif
-
-    if len(packages_to_update) == 0
-        let packages_to_update = keys(packages)
+    if packages_to_update is 0
+        return
     endif
 
     let total = len(packages_to_update)
@@ -143,6 +154,14 @@ function! lp#up(...)
     endfor
 
     echomsg printf('Successfully updated all %d packages', total)
+endfunction
+
+function! lp#rm(...)
+
+endfunction
+
+function! lp#i()
+
 endfunction
 
 function! lp#init()
