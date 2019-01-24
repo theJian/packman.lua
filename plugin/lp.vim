@@ -1,6 +1,11 @@
 if exists('g:loaded_lightpack') || v:version < 800
     finish
 endif
+
+if !has('pythonx')
+    finish
+endif
+
 let g:loaded_lightpack = 1
 
 command! PackInit call lp#init()
