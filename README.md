@@ -1,1 +1,1 @@
-# vim-lightpack
+# packman
