@@ -1,4 +1,5 @@
 function! packman#init()
+    let s:task_id = 0
     call s:init_installation_path()
     call s:define_commands()
 endfunction
@@ -11,7 +12,9 @@ function! s:init_installation_path()
 endfunction
 
 function! s:define_commands()
-    command! Packtest call packman#test()
+    command! Packtest                 call packman#test()
+    command! Pack                     call packman#install()
+    command! Packout -bang            call packman#output()
     command! -nargs=+ -bar Packget    call packman#get(0, <f-args>)
     command! -nargs=+ -bar Packopt    call packman#get(1, <f-args>)
     command! -nargs=+ -bar Packremove call packman#remove(<f-args>)
@@ -23,7 +26,7 @@ endfunction
 
 function! packman#get(opt, ...)
     let tasks = map(copy(a:000), {-> s:new_task(v:val, a:opt)})
-    echom string(tasks)
+    call s:add_tasks(tasks)
 endfunction
 
 function! packman#remove(...)
@@ -41,7 +44,9 @@ function! s:new_task(source, opt)
     let name = split(a:source, '/')[-1]
     let full_source = a:source =~? '^\(http\|git@\).*' ? a:name : ('https://github.com/' . a:source)
     let path = s:installation_path . (a:opt ? '/opt' : '/start') . '/' . name
+    let s:task_id += 1
     return {
+    \   'id': s:task_id,
     \   'name': name,
     \   'source': full_source,
     \   'path': path,
@@ -57,10 +62,43 @@ function! s:new_plugin(path, opt)
     \   }
 endfunction
 
+function! s:add_tasks(tasks)
+    if !exists('s:loaded_paralell_operation')
+        call s:load_paralell_operation()
+    endif
+
+    execute printf("python3 submit_tasks(%s)", string(a:tasks))
+endfunction
+
 function! s:err(msg)
     echohl ErrorMsg
     echomsg '[packman] ' . a:msg
     echo None
+endfunction
+
+function! s:load_paralell_operation()
+python3 << EOF
+import vim
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, wait, as_completed
+
+executor = ThreadPoolExecutor(max_workers=4)
+
+def install(task):
+    name = task["name"]
+    dir = task["path"]
+    repo_url = task["source"]
+    cmd = "git clone {} {} --recurse-submodules --quiet".format(repo_url, dir)
+    print("[packman] Installing {} to {}".format(name, dir))
+    completed = subprocess.run(cmd, shell=True)
+    print("[packman] {} installed. completed with return code {}".format(name, completed.returncode))
+    return 0
+
+def submit_tasks(tasks):
+    {executor.submit(install, task): task for task in tasks}
+
+EOF
+let s:loaded_paralell_operation = 1
 endfunction
 
 " ------------------------------
