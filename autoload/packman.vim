@@ -12,16 +12,11 @@ function! s:init_installation_path()
 endfunction
 
 function! s:define_commands()
-    command! Packtest                 call packman#test()
     command! Pack                     call packman#install()
     command! Packout -bang            call packman#output()
     command! -nargs=+ -bar Packget    call packman#get(0, <f-args>)
     command! -nargs=+ -bar Packopt    call packman#get(1, <f-args>)
     command! -nargs=+ -bar Packremove call packman#remove(<f-args>)
-endfunction
-
-function! packman#test()
-    call s:get_installed_plugins()
 endfunction
 
 function! packman#get(opt, ...)
