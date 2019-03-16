@@ -124,7 +124,7 @@ task_status_initial = 0
 task_status_success = 0
 task_status_failure = 0
 
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=4)
 
 task_queue = []
 completed_task_count = 0
