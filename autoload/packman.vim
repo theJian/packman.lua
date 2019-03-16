@@ -1,5 +1,8 @@
 function! packman#init()
     let s:task_id = 0
+    let s:task_status_initial = 0
+    let s:task_status_success = 1
+    let s:task_status_failure = 2
     call s:init_installation_path()
     call s:define_commands()
 endfunction
@@ -12,15 +15,49 @@ function! s:init_installation_path()
 endfunction
 
 function! s:define_commands()
-    command! Pack                     call packman#install()
-    command! Packout -bang            call packman#output()
-    command! -nargs=+ -bar Packget    call packman#get(0, <f-args>)
-    command! -nargs=+ -bar Packopt    call packman#get(1, <f-args>)
-    command! -nargs=+ -bar Packremove call packman#remove(<f-args>)
+    command! Pack                           call packman#open()
+    command! -nargs=? -complete=file Packin call packman#install(<f-args>)
+    command! -bang Packout                  call packman#output()
+    command! -nargs=+ -bar Packget          call packman#get(0, <f-args>)
+    command! -nargs=+ -bar Packopt          call packman#get(1, <f-args>)
+    command! -nargs=+ -bar Packremove       call packman#remove(<f-args>)
+endfunction
+
+function! packman#install(...)
+    let json_file = get(a:, 1, split(&packpath, ',')[0] . '/packman.json')
+    let json_file = fnamemodify(json_file, ':p')
+    echom json_file
+
+    if !filereadable(json_file)
+        call s:err(printf('Unable to read %s.', json_file))
+        return
+    endif
+
+    let lines = readfile(json_file)
+    let raw = join(lines, "")
+    let json = json_decode(raw)
+    let tasks = []
+    let packpath = split(&packpath, ',')[0]
+
+    for pname in keys(json)
+        let pack = get(json, pname, {})
+        for tname in keys(pack)
+            let plugin = get(pack, tname)
+            let source = get(plugin, 'source')
+            let opt = get(plugin, 'opt')
+            let path = packpath . '/pack/' . pname . (opt ? '/opt/' : '/start/') . tname
+            let task = s:new_task(tname, source, path, opt)
+            call add(tasks, task)
+        endfor
+    endfor
+
+    if len(tasks)
+        call s:add_tasks(tasks)
+    endif
 endfunction
 
 function! packman#get(opt, ...)
-    let tasks = map(copy(a:000), {-> s:new_task(v:val, a:opt)})
+    let tasks = map(copy(a:000), {-> s:new_task_from_source(v:val, a:opt)})
     call s:add_tasks(tasks)
 endfunction
 
@@ -35,18 +72,23 @@ function! s:get_installed_plugins()
     echom string(plugins)
 endfunction
 
-function! s:new_task(source, opt)
-    let name = split(a:source, '/')[-1]
-    let full_source = a:source =~? '^\(http\|git@\).*' ? a:name : ('https://github.com/' . a:source)
-    let path = s:installation_path . (a:opt ? '/opt' : '/start') . '/' . name
+function! s:new_task(name, source, path, opt)
     let s:task_id += 1
     return {
     \   'id': s:task_id,
-    \   'name': name,
-    \   'source': full_source,
-    \   'path': path,
+    \   'name': a:name,
+    \   'source': a:source,
+    \   'path': a:path,
     \   'opt': a:opt,
+    \   'status': 0,
     \   }
+endfunction
+
+function! s:new_task_from_source(source, opt)
+    let name = split(a:source, '/')[-1]
+    let full_source = a:source =~? '^\(http\|git@\).*' ? a:name : ('https://github.com/' . a:source)
+    let path = s:installation_path . (a:opt ? '/opt' : '/start') . '/' . name
+    return s:new_task(name, full_source, path, a:opt)
 endfunction
 
 function! s:new_plugin(path, opt)
@@ -61,35 +103,62 @@ function! s:add_tasks(tasks)
     if !exists('s:loaded_paralell_operation')
         call s:load_paralell_operation()
     endif
-
     execute printf("python3 submit_tasks(%s)", string(a:tasks))
 endfunction
 
 function! s:err(msg)
     echohl ErrorMsg
     echomsg '[packman] ' . a:msg
-    echo None
+    echohl None
 endfunction
 
 function! s:load_paralell_operation()
 python3 << EOF
 import vim
+import time
 import subprocess
+import os
 from concurrent.futures import ThreadPoolExecutor, wait, as_completed
 
-executor = ThreadPoolExecutor(max_workers=4)
+task_status_initial = 0
+task_status_success = 0
+task_status_failure = 0
+
+executor = ThreadPoolExecutor(max_workers=2)
+
+task_queue = []
+completed_task_count = 0
+
+def install_success_callback(task_id):
+    global task_queue
+    global completed_task_count
+    task = next((x for x in task_queue if x["id"] == task_id and x["status"] == task_status_initial), None)
+    if task:
+        task["status"] = task_status_success
+        completed_task_count += 1
+        name = task["name"]
+        total = len(task_queue)
+        print("[packman] {} installed[{}/{}]".format(name, completed_task_count, total))
+        if total == completed_task_count:
+            task_queue.clear()
+            completed_task_count = 0
 
 def install(task):
     name = task["name"]
     dir = task["path"]
     repo_url = task["source"]
-    cmd = "git clone {} {} --recurse-submodules --quiet".format(repo_url, dir)
-    print("[packman] Installing {} to {}".format(name, dir))
-    completed = subprocess.run(cmd, shell=True)
-    print("[packman] {} installed. completed with return code {}".format(name, completed.returncode))
-    return 0
+    if os.path.exists(dir):
+        print("[packman] {} already installed. skipped.".format(name))
+        install_success_callback(task["id"])
+    else:
+        cmd = "git clone {} {} --recurse-submodules --quiet".format(repo_url, dir)
+        completed = subprocess.run(cmd, shell=True)
+        time.sleep(1)
+        install_success_callback(task["id"])
+
 
 def submit_tasks(tasks):
+    task_queue.extend(tasks)
     {executor.submit(install, task): task for task in tasks}
 
 EOF
