@@ -17,7 +17,7 @@ endfunction
 function! s:define_commands()
     command! Pack                           call packman#open()
     command! -nargs=? -complete=file Packin call packman#install(<f-args>)
-    command! -bang Packout                  call packman#output()
+    command! -bang Packout                  call packman#out(<bang>0)
     command! -nargs=+ -bar Packget          call packman#get(0, <f-args>)
     command! -nargs=+ -bar Packopt          call packman#get(1, <f-args>)
     command! -nargs=+ -bar Packremove       call packman#remove(<f-args>)
@@ -26,7 +26,6 @@ endfunction
 function! packman#install(...)
     let json_file = get(a:, 1, split(&packpath, ',')[0] . '/packman.json')
     let json_file = fnamemodify(json_file, ':p')
-    echom json_file
 
     if !filereadable(json_file)
         call s:err(printf('Unable to read %s.', json_file))
@@ -54,6 +53,41 @@ function! packman#install(...)
     if len(tasks)
         call s:add_tasks(tasks)
     endif
+endfunction
+
+function! packman#out(force)
+    let packpath = split(&packpath, ',')[0]
+    let json_file = packpath . '/packman.json'
+    let json_file = fnamemodify(json_file, ':p')
+
+    if !a:force && filereadable(json_file)
+        call s:err(printf("File exists. Please consider to remove %s or use \":Packout!\"", json_file))
+        return
+    endif
+
+    let dict = {}
+    let packdirs = filter(globpath(packpath, 'pack/*', 0, 1), {-> isdirectory(v:val)})
+    for packdir in packdirs
+        let start_plugin_dirs = filter(globpath(packdir, 'start/*', 0, 1), {-> isdirectory(v:val)})
+        let opt_plugin_dirs = filter(globpath(packdir, 'opt/*', 0, 1), {-> isdirectory(v:val)})
+        let start_plugins = map(start_plugin_dirs, {-> s:new_plugin(simplify(v:val), 0)})
+        let opt_plugins = map(opt_plugin_dirs, {-> s:new_plugin(simplify(v:val), 0)})
+        let plugins = start_plugins + opt_plugins
+
+        let child_dict = {}
+        for plugin in plugins
+            let name = plugin["name"]
+            let child_dict[name] = plugin
+        endfor
+
+        if len(child_dict)
+            let packname = fnamemodify(packdir, ":t")
+            let dict[packname] = child_dict
+        endif
+    endfor
+
+    let content = json_encode(dict)
+    call writefile([content], json_file)
 endfunction
 
 function! packman#get(opt, ...)
@@ -92,9 +126,10 @@ function! s:new_task_from_source(source, opt)
 endfunction
 
 function! s:new_plugin(path, opt)
+    let source = trim(system(printf("cd %s && git config --get remote.origin.url", a:path)))
     return {
-    \   'name': split(a:path, '/')[-1],
-    \   'path': a:path,
+    \   'name': fnamemodify(a:path, ":t"),
+    \   'source': source,
     \   'opt': a:opt,
     \   }
 endfunction
