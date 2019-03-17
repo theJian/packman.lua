@@ -1,8 +1,5 @@
 function! packman#init()
     let s:task_id = 0
-    let s:task_status_initial = 0
-    let s:task_status_success = 1
-    let s:task_status_failure = 2
     call s:init_installation_path()
     call s:define_commands()
 endfunction
