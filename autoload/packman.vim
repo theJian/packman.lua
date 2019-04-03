@@ -68,7 +68,7 @@ function! packman#out(force)
         let start_plugin_dirs = filter(globpath(packdir, 'start/*', 0, 1), {-> isdirectory(v:val)})
         let opt_plugin_dirs = filter(globpath(packdir, 'opt/*', 0, 1), {-> isdirectory(v:val)})
         let start_plugins = map(start_plugin_dirs, {-> s:new_plugin(simplify(v:val), 0)})
-        let opt_plugins = map(opt_plugin_dirs, {-> s:new_plugin(simplify(v:val), 0)})
+        let opt_plugins = map(opt_plugin_dirs, {-> s:new_plugin(simplify(v:val), 1)})
         let plugins = start_plugins + opt_plugins
 
         let child_dict = {}
