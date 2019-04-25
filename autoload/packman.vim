@@ -14,7 +14,7 @@ endfunction
 function! s:define_commands()
     command! Pack                           call packman#open()
     command! -nargs=? -complete=file Packin call packman#install(<f-args>)
-    command! -bang Packout                  call packman#out(<bang>0)
+    command! -bang Packout                  call packman#export(<bang>0)
     command! -nargs=+ -bar Packget          call packman#get(0, <f-args>)
     command! -nargs=+ -bar Packopt          call packman#get(1, <f-args>)
     command! -nargs=+ -bar Packremove       call packman#remove(<f-args>)
@@ -52,7 +52,7 @@ function! packman#install(...)
     endif
 endfunction
 
-function! packman#out(force)
+function! packman#export(force)
     let packpath = split(&packpath, ',')[0]
     let json_file = packpath . '/packman.json'
     let json_file = fnamemodify(json_file, ':p')
