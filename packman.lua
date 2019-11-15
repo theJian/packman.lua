@@ -86,8 +86,35 @@ function packman.opt(source)
 	fetch_plugin(source, dest)
 end
 
-function packman.remove()
-	-- TODO
+function packman.remove(name)
+	local plugins_matching_name = {}
+	local subdir = {'start', 'opt'}
+
+	for _, dir in ipairs(subdir) do
+		local files = io.popen('ls ' .. packman.path .. '/' .. dir)
+		for filename in files:lines() do
+			if filename == name then
+				table.insert(plugins_matching_name, dir .. '/' .. filename)
+			end
+		end
+	end
+
+	local count = #plugins_matching_name
+	if count == 0 then
+		-- TODO: better log
+		print('Unable to locate plugin ' .. name)
+	end
+
+	if count > 1 then
+		print(count .. ' results found')
+	end
+
+	for _, plugin in ipairs(plugins_matching_name) do
+		local code = os.execute('rm -rf "' .. packman.path .. '/' .. plugin .. '" 2> /dev/null')
+		if code ~= 0 then
+			print('Failed to remove plugin ' .. plugin)
+		end
+	end
 end
 
 packman.init()
