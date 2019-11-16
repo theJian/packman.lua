@@ -54,8 +54,35 @@ function packman.init()
 	packman.path = init_installation_path()
 end
 
-function packman.install()
+function packman.install(filename)
 	
+end
+
+function packman.dump(filename)
+	if filename == nil then
+		-- get default dump filename
+		local info = debug.getinfo(1, 'S')
+		filename = vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packman.txt'
+	end
+
+	local outputfile = io.open(filename, 'w+')
+	local files = io.popen('ls -d ' .. packman.path .. '/start/*/')
+	for fname in files:lines() do
+		local url = io.popen('cd ' .. fname .. ' && git config --get remote.origin.url')
+		local urlstring = url:read()
+		outputfile:write(urlstring .. '\n')
+		url:close()
+	end
+	files = io.popen('ls -d ' .. packman.path .. '/opt/*/')
+	for fname in files:lines() do
+		local url = io.popen('cd ' .. fname .. ' && git config --get remote.origin.url')
+		local urlstring = url:read()
+		outputfile:write('* ' .. urlstring .. '\n')
+		url:close()
+	end
+
+	outputfile:flush()
+	outputfile:close()
 end
 
 function packman.get(source)
@@ -97,6 +124,7 @@ function packman.remove(name)
 				table.insert(plugins_matching_name, dir .. '/' .. filename)
 			end
 		end
+		files:close()
 	end
 
 	local count = #plugins_matching_name
