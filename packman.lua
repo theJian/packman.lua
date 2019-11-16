@@ -145,6 +145,13 @@ function packman.remove(name)
 	end
 end
 
+function packman.clear()
+	local code = os.execute('rm -rf "' .. packman.path .. '"')
+	if code ~= 0 then
+		print('Failed to clear plugins')
+	end
+end
+
 packman.init()
 
 return packman
