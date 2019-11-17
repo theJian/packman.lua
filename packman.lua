@@ -19,24 +19,6 @@ local function init_installation_path()
 	return installation_path
 end
 
-local function fetch_plugin(source, dir)
-	local ok, result = pcall(function() return normalize_source(source) end)
-	if not ok then
-		vim.api.nvim_call_function('failed to resolve source ' .. source)
-		return
-	end
-	source = result
-	local name = select_name_from_source(source)
-	local dest = dir .. '/' .. name
-	local isdir = vim.api.nvim_call_function('isdirectory', {dest})
-	if isdir == 1 then
-		vim.api.nvim_err_writeln('plugin is already installed.')
-		return
-	end
-
-	os.execute(string.format('git clone %s %s --recurse-submodules --quiet', source, dest))
-end
-
 local function select_name_from_source(source)
 	local idx = string.find(source, "/[^/]*$")
 	local name = string.sub(source, idx + 1)
@@ -58,6 +40,29 @@ end
 local function get_default_dump_file()
 	local info = debug.getinfo(1, 'S')
 	return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packman.txt'
+end
+
+local function fetch_plugin(source, dir)
+	local ok, result = pcall(normalize_source, source)
+	if not ok then
+		vim.api.nvim_err_writeln('failed to resolve source ' .. source)
+		return
+	end
+	source = result
+	local name = select_name_from_source(source)
+	local dest = dir .. '/' .. name
+	local isdir = vim.api.nvim_call_function('isdirectory', {dest})
+	if isdir == 1 then
+		vim.api.nvim_err_writeln('plugin is already installed.')
+		return
+	end
+
+	local process = io.popen(string.format('git clone %s %s --recurse-submodules --quiet 2>&1; echo $?', source, dest))
+	local lastline
+	for line in process:lines() do
+		lastline = line
+	end
+	print(lastline)
 end
 
 ---- Public Methods ----
@@ -113,12 +118,12 @@ function packman.get(source)
 		return packman.opt(source[1])
 	end
 	local dir = packman.path .. '/start'
-	fetch_plugin(source, dest)
+	fetch_plugin(source, dir)
 end
 
 function packman.opt(source)
 	local dir = packman.path .. '/opt'
-	fetch_plugin(source, dest)
+	fetch_plugin(source, dir)
 end
 
 function packman.remove(name)
