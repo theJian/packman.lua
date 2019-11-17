@@ -19,11 +19,18 @@ local function init_installation_path()
 	return installation_path
 end
 
-local function fetch_plugin(source, dest)
+local function fetch_plugin(source, dir)
+	local ok, result = pcall(function() return normalize_source(source) end)
+	if not ok then
+		vim.api.nvim_call_function('failed to resolve source ' .. source)
+		return
+	end
+	source = result
+	local name = select_name_from_source(source)
+	local dest = dir .. '/' .. name
 	local isdir = vim.api.nvim_call_function('isdirectory', {dest})
 	if isdir == 1 then
-		-- TODO: better log message
-		print('plugin is already installed.')
+		vim.api.nvim_err_writeln('plugin is already installed.')
 		return
 	end
 
@@ -105,26 +112,12 @@ function packman.get(source)
 		-- Source is on the first slot if it is a table, install it as a optional plugin.
 		return packman.opt(source[1])
 	end
-	local ok, result = pcall(function() return normalize_source(source) end)
-	if not ok then
-		-- TODO: log error
-		return
-	end
-	source = result
-	local name = select_name_from_source(source)
-	local dest = packman.path .. '/start/' .. name
+	local dir = packman.path .. '/start'
 	fetch_plugin(source, dest)
 end
 
 function packman.opt(source)
-	local ok, result = pcall(function() return normalize_source(source) end)
-	if not ok then
-		-- TODO: log error
-		return
-	end
-	source = result
-	local name = select_name_from_source(source)
-	local dest = packman.path .. '/opt/' .. name
+	local dir = packman.path .. '/opt'
 	fetch_plugin(source, dest)
 end
 
