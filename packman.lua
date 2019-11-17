@@ -48,6 +48,11 @@ local function normalize_source(source)
 	error(source .. ' is not a valid plugin source')
 end
 
+local function get_default_dump_file()
+	local info = debug.getinfo(1, 'S')
+	return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packman.txt'
+end
+
 ---- Public Methods ----
 
 function packman.init()
@@ -55,14 +60,24 @@ function packman.init()
 end
 
 function packman.install(filename)
-	
+	if filename == nil then
+		filename = get_default_dump_file()
+	end
+
+	for line in io.lines(filename) do
+		local words = {}
+		for w in line:gmatch('%S+') do table.insert(words, w) end
+		if words[1] == '*' then
+			packman.opt(words[2])
+		else
+			packman.get(words[1])
+		end
+	end
 end
 
 function packman.dump(filename)
 	if filename == nil then
-		-- get default dump filename
-		local info = debug.getinfo(1, 'S')
-		filename = vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packman.txt'
+		filename = get_default_dump_file()
 	end
 
 	local outputfile = io.open(filename, 'w+')
