@@ -42,6 +42,15 @@ local function get_default_dump_file()
 	return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packman.txt'
 end
 
+local function download_work(source, dest)
+	local process = io.popen(string.format('git clone %s %s --recurse-submodules --quiet 2>&1; echo $?', source, dest))
+	local lastline
+	for line in process:lines() do
+		lastline = line
+	end
+	return lastline
+end
+
 local function fetch_plugin(source, dir)
 	local ok, result = pcall(normalize_source, source)
 	if not ok then
@@ -57,12 +66,13 @@ local function fetch_plugin(source, dir)
 		return
 	end
 
-	local process = io.popen(string.format('git clone %s %s --recurse-submodules --quiet 2>&1; echo $?', source, dest))
-	local lastline
-	for line in process:lines() do
-		lastline = line
-	end
-	print(lastline)
+	vim.loop.new_work(download_work, function(code)
+		if code == '0' then
+			vim.api.nvim_out_write('Install plugin "' .. name .. '" successfully\n')
+		else
+			vim.api.nvim_err_writeln('Install plugin "' .. name .. '" failed')
+		end
+	end):queue(source, dest)
 end
 
 ---- Public Methods ----
