@@ -13,7 +13,7 @@ local function init_installation_path()
 
 	local isdir = vim.api.nvim_call_function('isdirectory', {installation_path})
 	if isdir == 0 then
-		vim.api.nvim_call_function('mkdir', {installation_path})
+		vim.api.nvim_call_function('mkdir -p', {installation_path})
 	end
 
 	return installation_path
