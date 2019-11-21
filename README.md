@@ -3,7 +3,7 @@
 ### Install
 
 ```sh
-git clone https://github.com/theJian/vim-packman.git $HOME/.vim/pack/packman/start/vim-packman
+$ curl https://raw.githubusercontent.com/theJian/packman.lua/master/packman.lua -o $HOME/.config/nvim/lua/packman.lua
 ```
 
 ### Basic Usage
