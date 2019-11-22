@@ -27,7 +27,7 @@ local function select_name_from_source(source)
 end
 
 local function normalize_source(source)
-	if string.match(source, '^https?') or string.match(source, '^git@') then
+	if string.match(source, '^https?') or string.match(source, '^git') then
 		return source
 	end
 
@@ -35,6 +35,7 @@ local function normalize_source(source)
 		return 'https://github.com/' .. source
 	end
 
+	-- FIXME: this will make vim crash
 	error(source .. ' is not a valid plugin source')
 end
 
@@ -52,7 +53,7 @@ local function download_work(source, dest)
 	return lastline
 end
 
-local function fetch_plugin(source, dir)
+local function fetch_plugin(source, dir, cb)
 	local ok, result = pcall(normalize_source, source)
 	if not ok then
 		vim.api.nvim_err_writeln('failed to resolve source ' .. source)
@@ -73,7 +74,17 @@ local function fetch_plugin(source, dir)
 		else
 			vim.api.nvim_err_writeln('Install plugin "' .. name .. '" failed')
 		end
+
+		if type(cb) == 'function' then cb(code) end
 	end):queue(source, dest)
+end
+
+local function get_dir_start()
+	return packman.path .. '/start'
+end
+
+local function get_dir_opt()
+	return packman.path .. '/opt'
 end
 
 ---- Public Methods ----
@@ -87,15 +98,22 @@ function packman.install(filename)
 		filename = get_default_dump_file()
 	end
 
-	for line in io.lines(filename) do
-		local words = {}
-		for w in line:gmatch('%S+') do table.insert(words, w) end
-		if words[1] == '*' then
-			packman.opt(words[2])
-		else
-			packman.get(words[1])
+	local read = io.lines(filename)
+
+	function run()
+		local line = read()
+		if line then
+			local words = {}
+			for w in line:gmatch('%S+') do table.insert(words, w) end
+			if words[1] == '*' then
+				fetch_plugin(words[2], get_dir_opt(), run)
+			else
+				fetch_plugin(words[1], get_dir_start(), run)
+			end
 		end
 	end
+
+	run()
 end
 
 function packman.dump(filename)
@@ -128,12 +146,12 @@ function packman.get(source)
 		-- Source is on the first slot if it is a table, install it as a optional plugin.
 		return packman.opt(source[1])
 	end
-	local dir = packman.path .. '/start'
+	local dir = get_dir_start()
 	fetch_plugin(source, dir)
 end
 
 function packman.opt(source)
-	local dir = packman.path .. '/opt'
+	local dir = get_dir_opt()
 	fetch_plugin(source, dir)
 end
 
