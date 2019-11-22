@@ -22,6 +22,7 @@ end
 local function select_name_from_source(source)
 	local idx = string.find(source, "/[^/]*$")
 	local name = string.sub(source, idx + 1)
+	name = string.gsub(name, "%.git$", '')
 	return name
 end
 
