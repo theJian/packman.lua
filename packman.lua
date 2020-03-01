@@ -98,22 +98,27 @@ function packman.install(filename)
 		filename = get_default_dump_file()
 	end
 
-	local read = io.lines(filename)
-
-	function run()
-		local line = read()
+	local packages = {}
+	for line in io.lines(filename) do
 		if line then
 			local words = {}
 			for w in line:gmatch('%S+') do table.insert(words, w) end
+			
+			local package = {}
 			if words[1] == '*' then
-				fetch_plugin(words[2], get_dir_opt(), run)
+				package.opt = true
+				package.name = words[2]
 			else
-				fetch_plugin(words[1], get_dir_start(), run)
+				package.name = words[1]
 			end
+
+			table.insert(packages, package)
 		end
 	end
 
-	run()
+	for _, package in ipairs(packages) do
+		-- TODO: install plugin
+	end
 end
 
 function packman.dump(filename)
