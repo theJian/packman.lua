@@ -1,5 +1,12 @@
 packman = {}
 
+local function NOOP()end
+
+local function alert(str)
+	-- TODO
+	-- vim.api.nvim_err_writeln(str)
+end
+
 local function init_installation_path()
 	local packpath = vim.api.nvim_get_option('packpath')
 	local idx = packpath:find(',')
@@ -44,39 +51,55 @@ local function get_default_dump_file()
 	return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packman.txt'
 end
 
-local function download_work(source, dest)
-	local process = io.popen(string.format('git clone %s %s --recurse-submodules --quiet 2>&1; echo $?', source, dest))
-	local lastline
-	for line in process:lines() do
-		lastline = line
-	end
-	return lastline
+local task_return_code_ok = 0
+local task_return_code_failed = 1
+local task_return_code_skipped = 2
+
+local function get_git_clone_command(source, dest)
+	return string.format('git clone %s %s --recurse-submodules --quiet', source, dest)
 end
 
-local function fetch_plugin(source, dir, cb)
+local function download(source, dest, cb)
+	local loop = vim.loop
+	local command = get_git_clone_command(source, dest)
+
+	local handle
+	handle = loop.spawn('bash', {
+		args = { '-c', command },
+	}, function(code)
+		handle:close()
+		cb(code)
+	end)
+end
+
+local function install_plugin(source, dir, cb)
+	cb = cb or NOOP
 	local ok, result = pcall(normalize_source, source)
 	if not ok then
-		vim.api.nvim_err_writeln('failed to resolve source ' .. source)
+		local reason = 'failed to resolve source ' .. source
+		alert(reason)
+		cb(task_return_code_failed, reason)
 		return
 	end
+
 	source = result
 	local name = select_name_from_source(source)
 	local dest = dir .. '/' .. name
 	local isdir = vim.api.nvim_call_function('isdirectory', {dest})
 	if isdir == 1 then
-		vim.api.nvim_err_writeln('plugin is already installed.')
+		local reason = 'plugin is already installed'
+		alert(reason)
+		cb(task_return_code_skipped, reason)
 		return
 	end
 
-	vim.loop.new_work(download_work, function(code)
-		if code == '0' then
-			vim.api.nvim_out_write('Install plugin "' .. name .. '" successfully\n')
+	download(source, dest, function(code)
+		if code == 0 then
+			cb(task_return_code_ok)
 		else
-			vim.api.nvim_err_writeln('Install plugin "' .. name .. '" failed')
+			cb(task_return_code_failed, 'failed to install')
 		end
-
-		if type(cb) == 'function' then cb(code) end
-	end):queue(source, dest)
+	end)
 end
 
 local function get_dir_start()
@@ -98,27 +121,47 @@ function packman.install(filename)
 		filename = get_default_dump_file()
 	end
 
-	local packages = {}
+	local plugins = {}
 	for line in io.lines(filename) do
 		if line then
 			local words = {}
 			for w in line:gmatch('%S+') do table.insert(words, w) end
 			
-			local package = {}
+			local plugin = {}
 			if words[1] == '*' then
-				package.opt = true
-				package.name = words[2]
+				plugin.opt = true
+				plugin.source = words[2]
 			else
-				package.name = words[1]
+				plugin.source = words[1]
 			end
 
-			table.insert(packages, package)
+			table.insert(plugins, plugin)
+		end
+	end
+	
+	function run(plugins, n, cb)
+		local plugin = plugins[n]
+		if plugin then
+			install_plugin(
+				plugin.source,
+				plugin.opt and get_dir_opt() or get_dir_start(),
+				vim.schedule_wrap(function(code, reason)
+					local next_n = n + 1
+					cb({
+						i = n,
+						status = {code, reason},
+						next = next_n
+					});
+					run(plugins, next_n, cb)
+				end)
+			)
 		end
 	end
 
-	for _, package in ipairs(packages) do
-		-- TODO: install plugin
-	end
+	run(plugins, 1, function(result)
+		-- TODO
+		alert(result.i)
+	end)
 end
 
 function packman.dump(filename)
@@ -152,12 +195,12 @@ function packman.get(source)
 		return packman.opt(source[1])
 	end
 	local dir = get_dir_start()
-	fetch_plugin(source, dir)
+	install_plugin(source, dir)
 end
 
 function packman.opt(source)
 	local dir = get_dir_opt()
-	fetch_plugin(source, dir)
+	install_plugin(source, dir)
 end
 
 function packman.remove(name)
@@ -177,17 +220,17 @@ function packman.remove(name)
 	local count = #plugins_matching_name
 	if count == 0 then
 		-- TODO: better log
-		print('Unable to locate plugin ' .. name)
+		alert('Unable to locate plugin ' .. name)
 	end
 
 	if count > 1 then
-		print(count .. ' results found')
+		alert(count .. ' results found')
 	end
 
 	for _, plugin in ipairs(plugins_matching_name) do
 		local code = os.execute('rm -rf "' .. packman.path .. '/' .. plugin .. '" 2> /dev/null')
 		if code ~= 0 then
-			print('Failed to remove plugin ' .. plugin)
+			alert('Failed to remove plugin ' .. plugin)
 		end
 	end
 end
@@ -195,7 +238,7 @@ end
 function packman.clear()
 	local code = os.execute('rm -rf "' .. packman.path .. '"')
 	if code ~= 0 then
-		print('Failed to clear plugins')
+		alert('Failed to clear plugins')
 	end
 end
 
