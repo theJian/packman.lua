@@ -48,7 +48,42 @@ end
 
 local function get_default_dump_file()
 	local info = debug.getinfo(1, 'S')
-	return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packman.txt'
+	return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packfile'
+end
+
+local function read_packfile(filename)
+	if filename == nil then
+		filename = get_default_dump_file()
+	end
+
+	local plugins = {}
+
+	-- save the content and restore them after finishing reading packfile
+	local opt_saved = opt
+	local Pack_saved = Pack
+
+	function opt() end
+	function Pack(p)
+		local source, optional
+
+		source = p[1]
+		if not source then
+			error('Error reading packfile. pack.source is required.')
+		end
+
+		optional = vim.tbl_contains(p, opt)
+
+		table.insert(plugins, {
+			source = source,
+			optional = optional,
+		})
+	end
+	dofile(filename)
+
+	opt = opt_saved
+	Pack = Pack_saved
+
+	return plugins
 end
 
 local task_return_code_ok = 0
@@ -117,34 +152,14 @@ function packman.init()
 end
 
 function packman.install(filename)
-	if filename == nil then
-		filename = get_default_dump_file()
-	end
+	local plugins = read_packfile(filename)
 
-	local plugins = {}
-	for line in io.lines(filename) do
-		if line then
-			local words = {}
-			for w in line:gmatch('%S+') do table.insert(words, w) end
-			
-			local plugin = {}
-			if words[1] == '*' then
-				plugin.opt = true
-				plugin.source = words[2]
-			else
-				plugin.source = words[1]
-			end
-
-			table.insert(plugins, plugin)
-		end
-	end
-	
-	function run(plugins, n, cb)
+	local function run(plugins, n, cb)
 		local plugin = plugins[n]
 		if plugin then
 			install_plugin(
 				plugin.source,
-				plugin.opt and get_dir_opt() or get_dir_start(),
+				plugin.optional and get_dir_opt() or get_dir_start(),
 				vim.schedule_wrap(function(code, reason)
 					local next_n = n + 1
 					cb({
@@ -159,8 +174,7 @@ function packman.install(filename)
 	end
 
 	run(plugins, 1, function(result)
-		-- TODO
-		alert(result.i)
+		alert(result.i, vim.inspect(result.status))
 	end)
 end
 
