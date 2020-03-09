@@ -46,15 +46,16 @@ local function normalize_source(source)
 	error(source .. ' is not a valid plugin source')
 end
 
-local function get_default_dump_file()
-	local info = debug.getinfo(1, 'S')
-	return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packfile'
+local function get_packfile(filename)
+	if filename == nil then
+		local info = debug.getinfo(1, 'S')
+		return vim.api.nvim_call_function('fnamemodify', {info.short_src, ':h'}) .. '/packfile'
+	end
+	return filename
 end
 
 local function read_packfile(filename)
-	if filename == nil then
-		filename = get_default_dump_file()
-	end
+	filename = get_packfile(filename)
 
 	local plugins = {}
 
@@ -145,6 +146,42 @@ local function get_dir_opt()
 	return packman.path .. '/opt'
 end
 
+local function get_files_in_dir(dir)
+	return io.popen('ls -d ' .. dir .. '/*/')
+end
+
+local function get_git_url(dir)
+	local file = io.popen('cd ' .. dir .. ' && git config --get remote.origin.url')
+	local output = file:read()
+	file:close()
+	return output
+end
+
+local function packfile_serialize(o)
+	local s = {}
+	if type(o) == 'table' then
+		table.insert(s, 'Pack {')
+		for k,v in pairs(o) do
+			if k == 'optional' then
+				if v then
+					table.insert(s, '  opt,')
+				end
+			else
+				table.insert(s, string.format('  %s = %s,', k, packfile_serialize(v)))
+			end
+		end
+		table.insert(s, '}')
+	elseif type(o) == 'number' then
+		table.insert(s, o)
+	elseif type(o) == 'string' then
+		table.insert(s, string.format('%q', o))
+	else
+		error('cannot serialize a ' .. type(o))
+	end
+
+	return table.concat(s, '\n')
+end
+
 ---- Public Methods ----
 
 function packman.init()
@@ -179,28 +216,36 @@ function packman.install(filename)
 end
 
 function packman.dump(filename)
-	if filename == nil then
-		filename = get_default_dump_file()
+	filename = get_packfile(filename)
+
+	local plugins = {}
+	local files = get_files_in_dir(get_dir_start())
+	for fname in files:lines() do
+		local git_url = get_git_url(fname)
+		table.insert(plugins, {
+			source = git_url,
+		})
+	end
+
+	files = get_files_in_dir(get_dir_opt())
+	for fname in files:lines() do
+		local git_url = get_git_url(fname)
+		table.insert(plugins, {
+			source = git_url,
+			optional = true
+		})
 	end
 
 	local outputfile = io.open(filename, 'w+')
-	local files = io.popen('ls -d ' .. packman.path .. '/start/*/')
-	for fname in files:lines() do
-		local url = io.popen('cd ' .. fname .. ' && git config --get remote.origin.url')
-		local urlstring = url:read()
-		outputfile:write(urlstring .. '\n')
-		url:close()
-	end
-	files = io.popen('ls -d ' .. packman.path .. '/opt/*/')
-	for fname in files:lines() do
-		local url = io.popen('cd ' .. fname .. ' && git config --get remote.origin.url')
-		local urlstring = url:read()
-		outputfile:write('* ' .. urlstring .. '\n')
-		url:close()
+
+	for _, plugin in ipairs(plugins) do
+		outputfile:write(packfile_serialize(plugin) .. '\n\n')
 	end
 
 	outputfile:flush()
 	outputfile:close()
+
+	-- TODO: alert result
 end
 
 function packman.get(source)
