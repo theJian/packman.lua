@@ -3,8 +3,21 @@ packman = {}
 local function NOOP()end
 
 local function alert(str)
-	-- TODO
-	-- vim.api.nvim_err_writeln(str)
+	local ew = vim.api.nvim_get_option('columns')
+	local eh = vim.api.nvim_get_option('lines')
+	local buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, true, {str})
+	local opts = {
+		relative = 'editor',
+		width = #str,
+		height = 1,
+		focusable = false,
+		style = 'minimal',
+		anchor = 'SE',
+		row = eh - 2,
+		col = ew,
+	}
+	local win = vim.api.nvim_open_win(buf, false, opts)
 end
 
 local function init_installation_path()
@@ -210,6 +223,9 @@ function packman.install(filename)
 		end
 	end
 
+	local succeeded = 0
+	local skipped = 0
+	local failed = 0
 	run(plugins, 1, function(result)
 		alert(result.i, vim.inspect(result.status))
 	end)
@@ -245,7 +261,7 @@ function packman.dump(filename)
 	outputfile:flush()
 	outputfile:close()
 
-	-- TODO: alert result
+	alert('packfile has been created as ' .. filename)
 end
 
 function packman.get(source)
