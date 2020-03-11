@@ -2,22 +2,68 @@ packman = {}
 
 local function NOOP()end
 
-local function alert(str)
-	local ew = vim.api.nvim_get_option('columns')
-	local eh = vim.api.nvim_get_option('lines')
-	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_buf_set_lines(buf, 0, -1, true, {str})
-	local opts = {
-		relative = 'editor',
-		width = #str,
-		height = 1,
-		focusable = false,
-		style = 'minimal',
-		anchor = 'SE',
-		row = eh - 2,
-		col = ew,
-	}
-	local win = vim.api.nvim_open_win(buf, false, opts)
+local function set_timeout(timeout, cb)
+	local timer = vim.loop.new_timer()
+	timer:start(timeout, 0, vim.schedule_wrap(function()
+		timer:stop()
+		timer:close()
+		cb()
+	end))
+	return timer
+end
+
+local function clear_timeout(timer)
+	if timer and timer:is_active() then
+		timer:stop()
+		timer:close()
+	end
+end
+
+local notify = {
+	buf = nil,
+	win = nil,
+	timer = nil,
+}
+
+function notify:show(text)
+	if not self.win then
+		-- create a win
+		local ew = vim.api.nvim_get_option('columns')
+		local eh = vim.api.nvim_get_option('lines')
+		self.buf = vim.api.nvim_create_buf(false, true)
+		vim.api.nvim_buf_set_lines(self.buf, 0, -1, true, {text})
+		local opts = {
+			relative = 'editor',
+			width = vim.api.nvim_strwidth(text),
+			height = 1,
+			focusable = false,
+			style = 'minimal',
+			anchor = 'SE',
+			row = eh - 2,
+			col = ew,
+		}
+		self.win = vim.api.nvim_open_win(self.buf, false, opts)
+	else
+		-- update win buffer
+		vim.api.nvim_buf_set_lines(self.buf, 0, -1, true, {text})
+		vim.api.nvim_win_set_width(self.win, vim.api.nvim_strwidth(text))
+	end
+end
+
+function notify:hide()
+	if self.win then
+		vim.api.nvim_win_close(self.win, true)
+		self.win = nil
+		self.buf = nil
+	end
+end
+
+function notify:alert(str)
+	clear_timeout(self.timer)
+	self:show(str)
+	self.timer = set_timeout(3000, function()
+		self:hide()
+	end)
 end
 
 local function init_installation_path()
@@ -294,7 +340,6 @@ function packman.remove(name)
 
 	local count = #plugins_matching_name
 	if count == 0 then
-		-- TODO: better log
 		alert('Unable to locate plugin ' .. name)
 	end
 
@@ -305,7 +350,7 @@ function packman.remove(name)
 	for _, plugin in ipairs(plugins_matching_name) do
 		local code = os.execute('rm -rf "' .. packman.path .. '/' .. plugin .. '" 2> /dev/null')
 		if code ~= 0 then
-			alert('Failed to remove plugin ' .. plugin)
+			alert('failed to remove plugin ' .. plugin)
 		end
 	end
 end
@@ -313,7 +358,7 @@ end
 function packman.clear()
 	local code = os.execute('rm -rf "' .. packman.path .. '"')
 	if code ~= 0 then
-		alert('Failed to clear plugins')
+		alert('failed to clear plugins')
 	end
 end
 
