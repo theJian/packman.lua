@@ -2,6 +2,14 @@ packman = {}
 
 local function NOOP()end
 
+local function set_interval(interval, cb)
+	local timer = vim.loop.new_timer()
+	timer:start(interval, interval, vim.schedule_wrap(function()
+		cb()
+	end))
+	return timer
+end
+
 local function set_timeout(timeout, cb)
 	local timer = vim.loop.new_timer()
 	timer:start(timeout, 0, vim.schedule_wrap(function()
@@ -12,7 +20,7 @@ local function set_timeout(timeout, cb)
 	return timer
 end
 
-local function clear_timeout(timer)
+local function clear_timer(timer)
 	if timer and timer:is_active() then
 		timer:stop()
 		timer:close()
@@ -59,7 +67,7 @@ function notify:hide()
 end
 
 function notify:alert(str)
-	clear_timeout(self.timer)
+	clear_timer(self.timer)
 	self:show(str)
 	self.timer = set_timeout(3000, function()
 		self:hide()
@@ -172,7 +180,7 @@ local function install_plugin(source, dir, cb)
 	local ok, result = pcall(normalize_source, source)
 	if not ok then
 		local reason = 'failed to resolve source ' .. source
-		alert(reason)
+		notify:alert(reason)
 		cb(task_return_code_failed, reason)
 		return
 	end
@@ -183,7 +191,7 @@ local function install_plugin(source, dir, cb)
 	local isdir = vim.api.nvim_call_function('isdirectory', {dest})
 	if isdir == 1 then
 		local reason = 'plugin is already installed'
-		alert(reason)
+		notify:alert(reason)
 		cb(task_return_code_skipped, reason)
 		return
 	end
@@ -225,6 +233,8 @@ local function packfile_serialize(o)
 				if v then
 					table.insert(s, '  opt,')
 				end
+			elseif k == 'source' then
+				table.insert(s, 2, string.format('  %q,', v))
 			else
 				table.insert(s, string.format('  %s = %s,', k, packfile_serialize(v)))
 			end
@@ -241,6 +251,48 @@ local function packfile_serialize(o)
 	return table.concat(s, '\n')
 end
 
+local function run_install_plugins(plugins, n, cb)
+	local plugin = plugins[n]
+	if plugin then
+		install_plugin(
+			plugin.source,
+			plugin.optional and get_dir_opt() or get_dir_start(),
+			vim.schedule_wrap(function(code, reason)
+				local next_n = n + 1
+				cb({
+					i = n,
+					status = {code, reason},
+					next = next_n
+				});
+				run_install_plugins(plugins, next_n, cb)
+			end)
+		)
+	end
+end
+
+local spinner_generator = coroutine.create(function()
+	local frames = {'🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'}
+	local l = #frames
+	local i = 1
+	while true do
+		coroutine.yield(frames[i])
+		i = i % l + 1
+	end
+end)
+
+local function spinner_sign()
+	local _, sign = coroutine.resume(spinner_generator)
+	return sign
+end
+
+local function show_install_progress(i, total)
+	notify:show(spinner_sign() .. string.format(' Installing plugins [%u/%u]', i, total))
+end
+
+local function show_install_result(succeeded, failed, skipped)
+	notify:alert(string.format('%u succeeded, %u failed, %u skipped', succeeded, failed, skipped))
+end
+
 ---- Public Methods ----
 
 function packman.init()
@@ -250,30 +302,33 @@ end
 function packman.install(filename)
 	local plugins = read_packfile(filename)
 
-	local function run(plugins, n, cb)
-		local plugin = plugins[n]
-		if plugin then
-			install_plugin(
-				plugin.source,
-				plugin.optional and get_dir_opt() or get_dir_start(),
-				vim.schedule_wrap(function(code, reason)
-					local next_n = n + 1
-					cb({
-						i = n,
-						status = {code, reason},
-						next = next_n
-					});
-					run(plugins, next_n, cb)
-				end)
-			)
-		end
-	end
-
 	local succeeded = 0
 	local skipped = 0
 	local failed = 0
-	run(plugins, 1, function(result)
-		alert(result.i, vim.inspect(result.status))
+	local total = #plugins
+	local i = 1
+
+	show_install_progress(i, total)
+	local timer = set_interval(500, function()
+		show_install_progress(i, total)
+	end)
+
+	run_install_plugins(plugins, 1, function(result)
+		if result.i == total then
+			-- tasks finished
+			clear_timer(timer)
+			show_install_result(succeeded, failed, skipped)
+		end
+
+		i = result.next
+		local return_code = result.status[1]
+		if return_code == task_return_code_ok then
+			succeeded = succeeded + 1
+		elseif return_code == task_return_code_failed then
+			failed = failed + 1
+		elseif return_code == task_return_code_skipped then
+			skipped = skipped + 1
+		end
 	end)
 end
 
@@ -307,7 +362,7 @@ function packman.dump(filename)
 	outputfile:flush()
 	outputfile:close()
 
-	alert('packfile has been created as ' .. filename)
+	notify:alert('packfile has been created as ' .. filename)
 end
 
 function packman.get(source)
@@ -340,17 +395,17 @@ function packman.remove(name)
 
 	local count = #plugins_matching_name
 	if count == 0 then
-		alert('Unable to locate plugin ' .. name)
+		notify:alert('Unable to locate plugin ' .. name)
 	end
 
 	if count > 1 then
-		alert(count .. ' results found')
+		notify:alert(count .. ' results found')
 	end
 
 	for _, plugin in ipairs(plugins_matching_name) do
 		local code = os.execute('rm -rf "' .. packman.path .. '/' .. plugin .. '" 2> /dev/null')
 		if code ~= 0 then
-			alert('failed to remove plugin ' .. plugin)
+			notify:alert('failed to remove plugin ' .. plugin)
 		end
 	end
 end
@@ -358,7 +413,7 @@ end
 function packman.clear()
 	local code = os.execute('rm -rf "' .. packman.path .. '"')
 	if code ~= 0 then
-		alert('failed to clear plugins')
+		notify:alert('failed to clear plugins')
 	end
 end
 
