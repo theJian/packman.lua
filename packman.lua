@@ -366,52 +366,82 @@ function packman.dump(filename)
 end
 
 function packman.get(source)
+	local dir, src
 	if type(source) == 'table' then
 		-- Source is on the first slot if it is a table, install it as a optional plugin.
-		return packman.opt(source[1])
+		dir = get_dir_opt()
+		src = source[1]
+	else
+		dir = get_dir_start()
+		src = source
 	end
-	local dir = get_dir_start()
-	install_plugin(source, dir)
-end
 
-function packman.opt(source)
-	local dir = get_dir_opt()
-	install_plugin(source, dir)
-end
+	local msg = string.format(' Installing from %s', src)
+	notify:show(spinner_sign() .. msg)
+	local timer = set_interval(500, function()
+		notify:show(spinner_sign() .. msg)
+	end)
 
-function packman.remove(name)
-	local plugins_matching_name = {}
-	local subdir = {'start', 'opt'}
+	install_plugin(
+		src,
+		dir,
+		vim.schedule_wrap(function(code, reason)
+			clear_timer(timer)
 
-	for _, dir in ipairs(subdir) do
-		local files = io.popen('ls ' .. packman.path .. '/' .. dir)
-		for filename in files:lines() do
-			if filename == name then
-				table.insert(plugins_matching_name, dir .. '/' .. filename)
+			if code == task_return_code_ok then
+				notify:alert('Done!')
+			elseif code == task_return_code_failed then
+				notify:alert('Failed! ' .. reason)
+			elseif code == task_return_code_skipped then
+				notify:alert('skipped! ' .. reason)
 			end
+		end)
+	)
+end
+
+function packman.remove(pattern)
+	local matches = {}
+	local files = get_files_in_dir(get_dir_start())
+	for fname in files:lines() do
+		local name = vim.api.nvim_call_function('fnamemodify', {fname, ':h:t'})
+		if pattern == name then
+			table.insert(matches, fname)
 		end
-		files:close()
 	end
 
-	local count = #plugins_matching_name
-	if count == 0 then
-		notify:alert('Unable to locate plugin ' .. name)
+	files = get_files_in_dir(get_dir_opt())
+	for fname in files:lines() do
+		local name = vim.api.nvim_call_function('fnamemodify', {fname, ':h:t'})
+		if pattern == name then
+			table.insert(matches, fname)
+		end
 	end
 
-	if count > 1 then
-		notify:alert(count .. ' results found')
+	if #matches == 0 then
+		notify:alert(string.format('No plugin found for %q', pattern))
+		return
 	end
 
-	for _, plugin in ipairs(plugins_matching_name) do
-		local code = os.execute('rm -rf "' .. packman.path .. '/' .. plugin .. '" 2> /dev/null')
+	local succeeded = 0
+	local failed = 0
+	for _, fname in ipairs(matches) do
+		local code = os.execute(string.format('rm -rf %q 2> /dev/null', fname))
 		if code ~= 0 then
-			notify:alert('failed to remove plugin ' .. plugin)
+			failed = failed + 1
+		else
+			succeeded = succeeded + 1
 		end
+	end
+
+	if failed == 0 then
+		notify:alert(succeeded .. ' plugins removed')
+	else
+		notify:alert(succeeded .. ' plugins removed, but ' .. failed .. ' failed to remove.')
 	end
 end
 
 function packman.clear()
-	local code = os.execute('rm -rf "' .. packman.path .. '"')
+	local code = os.execute(string.format('rm -rf %q', packman.path))
 	if code ~= 0 then
 		notify:alert('failed to clear plugins')
 	end
