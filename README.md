@@ -37,7 +37,11 @@ If plugin is hosted on github, you can simply use `username/plugin`
 :lua packman.get "username/plugin"
 ```
 
-TODO: removing plugins
+To remove a installed plugin, pass the exact plugin name to `packman.remove`.
+
+```
+:lua packman.remove "plugin"
+```
 
 #### Synchronizing plugin list
 
@@ -47,11 +51,9 @@ Since plugin list isn't part of the `init.vim` file, we can't keep plugins in sy
 :lua packman.dump()
 ```
 
-By default a file `packman.txt` will be generated at the same directory with where packman file is located in. If you follow the installation instruction then it can be found under `$HOME/.config/nvim/lua`.
+By default a file `packfile` will be generated at the same directory with where packman file is located in. If you follow the installation instruction then it can be found under `$HOME/.config/nvim/lua`.
 
-Then you can sync `packman.txt` and install plugins from it. It reads from the same filename as the output file of dump method.
+Then you can sync `packfile` and install plugins from it. It reads from the same filename as the output file of dump method.
 ```
 :lua packman.install()
 ```
-
-There is no limit on how many plugin list files you can generate.
