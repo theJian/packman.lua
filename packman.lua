@@ -158,13 +158,30 @@ local task_return_code_ok = 0
 local task_return_code_failed = 1
 local task_return_code_skipped = 2
 
-local function get_git_clone_command(source, dest)
+local function git_clone_command(source, dest)
 	return string.format('git clone %s %s --recurse-submodules --quiet', source, dest)
+end
+
+local function git_pull_command(dir)
+	return string.format('git -C %s pull --quiet --ff-only --rebase=false', dir)
 end
 
 local function download(source, dest, cb)
 	local loop = vim.loop
-	local command = get_git_clone_command(source, dest)
+	local command = git_clone_command(source, dest)
+
+	local handle
+	handle = loop.spawn('bash', {
+		args = { '-c', command },
+	}, function(code)
+		handle:close()
+		cb(code)
+	end)
+end
+
+local function update(dir, cb)
+	local loop = vim.loop
+	local command = git_pull_command(dir)
 
 	local handle
 	handle = loop.spawn('bash', {
@@ -205,6 +222,23 @@ local function install_plugin(source, dir, cb)
 	end)
 end
 
+local function update_plugin(dir, cb)
+	cb = cb or NOOP
+	local isdir = vim.api.nvim_call_function('isdirectory', {dir})
+	if isdir ~= 1 then
+		cb(task_return_code_failed, 'Plugin is not installed')
+		return
+	end
+
+	update(dir, function(code)
+		if code == 0 then
+			cb(task_return_code_ok)
+		else
+			cb(task_return_code_failed, 'failed to update')
+		end
+	end)
+end
+
 local function get_dir_start()
 	return packman.path .. '/start'
 end
@@ -218,7 +252,7 @@ local function get_files_in_dir(dir)
 end
 
 local function get_git_url(dir)
-	local file = io.popen('cd ' .. dir .. ' && git config --get remote.origin.url')
+	local file = io.popen('git -C '.. dir .. ' config --get remote.origin.url')
 	local output = file:read()
 	file:close()
 	return output
@@ -270,6 +304,24 @@ local function run_install_plugins(plugins, n, cb)
 	end
 end
 
+local function run_update_plugins(files, n, cb)
+	local dir = files[n]
+	if dir then
+		update_plugin(
+			dir,
+			vim.schedule_wrap(function(code, reason)
+				local next_n = n + 1
+				cb({
+					i = n,
+					status = {code, reason},
+					next = next_n
+				});
+				run_update_plugins(files, next_n, cb)
+			end)
+		)
+	end
+end
+
 local spinner_generator = coroutine.create(function()
 	local frames = {'🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'}
 	local l = #frames
@@ -293,6 +345,30 @@ local function show_install_result(succeeded, failed, skipped)
 	notify:alert(string.format('%u succeeded, %u failed, %u skipped', succeeded, failed, skipped))
 end
 
+local function show_update_result(succeeded, failed, total)
+	if succeeded == total then
+		notify:alert('Done!')
+		return
+	end
+
+	notify:alert(string.format('%u updated, %u failed', succeeded, failed))
+end
+
+local function find_installed_files(pattern)
+	local files = {}
+	local files_start = get_files_in_dir(get_dir_start())
+	local files_opt = get_files_in_dir(get_dir_opt())
+	for _, files_found in ipairs({files_start, files_opt}) do
+		for fname in files_found:lines() do
+			local name = vim.api.nvim_call_function('fnamemodify', {fname, ':h:t'})
+			if pattern == name then
+				table.insert(files, fname)
+			end
+		end
+	end
+	return files
+end
+
 ---- Public Methods ----
 
 function packman.init()
@@ -314,13 +390,6 @@ function packman.install(filename)
 	end)
 
 	run_install_plugins(plugins, 1, function(result)
-		if result.i == total then
-			-- tasks finished
-			clear_timer(timer)
-			show_install_result(succeeded, failed, skipped)
-		end
-
-		i = result.next
 		local return_code = result.status[1]
 		if return_code == task_return_code_ok then
 			succeeded = succeeded + 1
@@ -329,6 +398,15 @@ function packman.install(filename)
 		elseif return_code == task_return_code_skipped then
 			skipped = skipped + 1
 		end
+
+		if result.i == total then
+			-- tasks finished
+			clear_timer(timer)
+			show_install_result(succeeded, failed, skipped)
+			return
+		end
+
+		i = result.next
 	end)
 end
 
@@ -399,32 +477,50 @@ function packman.get(source)
 	)
 end
 
-function packman.remove(pattern)
-	local matches = {}
-	local files = get_files_in_dir(get_dir_start())
-	for fname in files:lines() do
-		local name = vim.api.nvim_call_function('fnamemodify', {fname, ':h:t'})
-		if pattern == name then
-			table.insert(matches, fname)
-		end
-	end
+function packman.update(pattern)
+	local files = find_installed_files(pattern)
 
-	files = get_files_in_dir(get_dir_opt())
-	for fname in files:lines() do
-		local name = vim.api.nvim_call_function('fnamemodify', {fname, ':h:t'})
-		if pattern == name then
-			table.insert(matches, fname)
-		end
-	end
-
-	if #matches == 0 then
-		notify:alert(string.format('No plugin found for %q', pattern))
+	if #files == 0 then
+		notify:alert(string.format('Unable to find plugin %q', pattern))
 		return
 	end
 
 	local succeeded = 0
 	local failed = 0
-	for _, fname in ipairs(matches) do
+	local total = #files
+
+	local msg = ' Updating'
+	notify:show(spinner_sign() .. msg)
+	local timer = set_interval(500, function()
+		notify:show(spinner_sign() .. msg)
+	end)
+
+	run_update_plugins(files, 1, function(result)
+		local return_code = result.status[1]
+		if return_code == task_return_code_ok then
+			succeeded = succeeded + 1
+		elseif return_code == task_return_code_failed then
+			failed = failed + 1
+		end
+
+		if result.i == total then
+			clear_timer(timer)
+			show_update_result(succeeded, failed, total)
+		end
+	end)
+end
+
+function packman.remove(pattern)
+	local files = find_installed_files(pattern)
+
+	if #files == 0 then
+		notify:alert(string.format('Unable to find plugin %q', pattern))
+		return
+	end
+
+	local succeeded = 0
+	local failed = 0
+	for _, fname in ipairs(files) do
 		local code = os.execute(string.format('rm -rf %q 2> /dev/null', fname))
 		if code ~= 0 then
 			failed = failed + 1
