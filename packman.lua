@@ -248,7 +248,7 @@ local function get_dir_opt()
 end
 
 local function get_files_in_dir(dir)
-	return io.popen('ls -d ' .. dir .. '/*/')
+	return io.popen('/bin/ls -d ' .. dir .. '/*')
 end
 
 local function get_git_url(dir)
@@ -360,7 +360,7 @@ local function find_installed_files(pattern)
 	local files_opt = get_files_in_dir(get_dir_opt())
 	for _, files_found in ipairs({files_start, files_opt}) do
 		for fname in files_found:lines() do
-			local name = vim.api.nvim_call_function('fnamemodify', {fname, ':h:t'})
+			local name = vim.api.nvim_call_function('fnamemodify', {fname, ':t'})
 			if pattern == name then
 				table.insert(files, fname)
 			end
