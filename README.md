@@ -11,6 +11,7 @@
 #### Installing
 
 The whole plugin is just a lua file.
+Run this command to install or update packman.
 ```sh
 $ curl https://raw.githubusercontent.com/theJian/packman.lua/master/packman.lua -o $HOME/.config/nvim/lua/packman.lua
 ```
@@ -41,6 +42,12 @@ To remove a installed plugin, pass the exact plugin name to `packman.remove`.
 
 ```
 :lua packman.remove "plugin"
+```
+
+#### Updating plugin
+
+```
+:lua packman.update "plugin"
 ```
 
 #### Synchronizing plugin list
