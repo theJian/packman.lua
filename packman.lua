@@ -361,7 +361,7 @@ local function find_installed_files(pattern)
 	for _, files_found in ipairs({files_start, files_opt}) do
 		for fname in files_found:lines() do
 			local name = vim.api.nvim_call_function('fnamemodify', {fname, ':t'})
-			if pattern == name then
+			if pattern == name or pattern == nil then
 				table.insert(files, fname)
 			end
 		end
