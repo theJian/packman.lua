@@ -248,7 +248,7 @@ local function get_dir_opt()
 end
 
 local function get_files_in_dir(dir)
-	return io.popen('/bin/ls -d ' .. dir .. '/*')
+	return io.popen('/bin/ls -d ' .. dir .. '/* 2>/dev/null')
 end
 
 local function get_git_url(dir)
