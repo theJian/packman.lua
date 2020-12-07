@@ -543,6 +543,24 @@ function packman.clear()
 	end
 end
 
+function packman.helptags(pattern)
+	local files = find_installed_files(pattern)
+
+	if #files == 0 then
+		notify:alert(string.format('Unable to find plugin %q', pattern))
+		return
+	end
+
+	for _, file in ipairs(files) do
+		local doc_dir = file .. '/doc'
+		local isdir = vim.api.nvim_call_function('isdirectory', {doc_dir})
+		if isdir == 1 then
+			print(file)
+			vim.cmd("helptags " .. doc_dir)
+		end
+	end
+end
+
 packman.init()
 
 return packman
