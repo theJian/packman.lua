@@ -443,7 +443,7 @@ function packman.dump(filename)
 	notify:alert('packfile has been created as ' .. filename)
 end
 
-function packman.get(source)
+function packman.get(source, cb)
 	local dir, src
 	if type(source) == 'table' then
 		-- Source is on the first slot if it is a table, install it as a optional plugin.
@@ -472,6 +472,10 @@ function packman.get(source)
 				notify:alert('Failed! ' .. reason)
 			elseif code == task_return_code_skipped then
 				notify:alert('skipped! ' .. reason)
+			end
+
+			if cb then
+				cb(code, reason)
 			end
 		end)
 	)
