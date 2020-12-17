@@ -7,16 +7,17 @@ vim.api.nvim_set_option('packpath', testdir)
 packman.init()
 
 local test_get = loadfile('test/test-get.lua')
+local test_remove = loadfile('test/test-remove.lua')
 
 local test_result = { total = 0, failed = 0 }
 
 local function print_test_result(desc, is_failed)
 	test_result.total = test_result.total + 1
 	if is_failed then
-		print(string.format('[%s]%s\n', '✗', desc))
+		print(string.format('[%s]%s \n', '✗', desc))
 		test_result.failed = test_result.failed + 1
 	else
-		print(string.format('[%s]%s\n', '✓', desc))
+		print(string.format('[%s]%s \n', '✓', desc))
 	end
 end
 
@@ -82,6 +83,7 @@ coroutine.wrap(function()
 	end
 
 	test_get()
+	test_remove()
 
 	print_summary()
 
