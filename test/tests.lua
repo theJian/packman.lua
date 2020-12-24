@@ -7,10 +7,11 @@ vim.api.nvim_set_option('packpath', testdir)
 packman.init()
 
 local test_get = loadfile('test/test-get.lua')
-local test_remove = loadfile('test/test-remove.lua')
 local test_dump = loadfile('test/test-dump.lua')
+local test_remove = loadfile('test/test-remove.lua')
+local test_install = loadfile('test/test-install.lua')
 
-local test_modules = {test_get, test_dump, test_remove}
+local test_modules = {test_get, test_dump, test_remove, test_install}
 local test_result = { total = 0, failed = 0 }
 
 local function print_test_result(desc, is_failed)

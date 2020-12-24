@@ -375,7 +375,7 @@ function packman.init()
 	packman.path = init_installation_path()
 end
 
-function packman.install(filename)
+function packman.install(filename, cb)
 	local plugins = read_packfile(filename)
 
 	local succeeded = 0
@@ -403,6 +403,11 @@ function packman.install(filename)
 			-- tasks finished
 			clear_timer(timer)
 			show_install_result(succeeded, failed, skipped)
+
+			if cb then
+				cb(result)
+			end
+
 			return
 		end
 
