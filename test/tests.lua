@@ -8,7 +8,9 @@ packman.init()
 
 local test_get = loadfile('test/test-get.lua')
 local test_remove = loadfile('test/test-remove.lua')
+local test_dump = loadfile('test/test-dump.lua')
 
+local test_modules = {test_get, test_dump, test_remove}
 local test_result = { total = 0, failed = 0 }
 
 local function print_test_result(desc, is_failed)
@@ -32,28 +34,29 @@ local function fs_iter(path)
 	end
 end
 
+local helper = {}
+
+function helper.is_installed(target_name)
+	local dir = packman.path .. '/start'
+	for name, t in fs_iter(dir) do
+		if t == 'directory' and name == target_name then
+			return true
+		end
+	end
+	return false
+end
+
+function helper.is_installed_as_optional(target_name)
+	local dir = packman.path .. '/opt'
+	for name, t in fs_iter(dir) do
+		if t == 'directory' and name == target_name then
+			return true
+		end
+	end
+	return false
+end
+
 coroutine.wrap(function()
-	test_helper = {}
-
-	function test_helper.is_installed(target_name)
-		local dir = packman.path .. '/start'
-		for name, t in fs_iter(dir) do
-			if t == 'directory' and name == target_name then
-				return true
-			end
-		end
-		return false
-	end
-
-	function test_helper.is_installed_as_optional(target_name)
-		local dir = packman.path .. '/opt'
-		for name, t in fs_iter(dir) do
-			if t == 'directory' and name == target_name then
-				return true
-			end
-		end
-		return false
-	end
 
 	test = function(desc, f)
 		local self = coroutine.running()
@@ -82,8 +85,11 @@ coroutine.wrap(function()
 		end
 	end
 
-	test_get()
-	test_remove()
+	test_helper = helper
+
+	for _, test_module in ipairs(test_modules) do
+		test_module()
+	end
 
 	print_summary()
 
