@@ -110,6 +110,6 @@ try(function()
 	end)()
 end, function(err)
 	print(vim.inspect(err))
-	vim.cmd('cq')
+	vim.api.nvim_command('cq')
 end)
 
