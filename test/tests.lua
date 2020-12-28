@@ -7,7 +7,7 @@ end
 
 try(function()
 	local uv = vim.loop
-	local cwd = vim.call('getcwd')
+	local cwd = vim.api.nvim_call_function('getcwd', {})
 	local testdir = cwd .. '/test'
 	vim.api.nvim_set_option('runtimepath', cwd)
 	vim.api.nvim_set_option('packpath', testdir)
@@ -103,9 +103,9 @@ try(function()
 		print_summary()
 
 		if test_result.failed > 0 then
-			vim.cmd('cq')
+			vim.api.nvim_command('cq')
 		else
-			vim.cmd('q')
+			vim.api.nvim_command('q')
 		end
 	end)()
 end, function(err)
