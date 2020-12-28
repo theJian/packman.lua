@@ -9,8 +9,10 @@ try(function()
 	local uv = vim.loop
 	local cwd = vim.api.nvim_call_function('getcwd', {})
 	local testdir = cwd .. '/test'
-	vim.api.nvim_set_option('runtimepath', cwd)
-	vim.api.nvim_set_option('packpath', testdir)
+	local runtimepath = vim.api.nvim_get_option('runtimepath')
+	local packpath = vim.api.nvim_get_option('packpath')
+	vim.api.nvim_set_option('runtimepath', table.concat({cwd, runtimepath}, ','))
+	vim.api.nvim_set_option('packpath', table.concat({testdir, packpath}, ','))
 
 	packman.init()
 
