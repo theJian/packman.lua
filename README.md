@@ -1,5 +1,6 @@
 # packman
 
+[![test](https://github.com/theJian/packman.lua/workflows/Test/badge.svg)](https://github.com/theJian/packman.lua/actions)
 
 ## Getting Started
 
