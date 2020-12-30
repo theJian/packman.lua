@@ -1,0 +1,21 @@
+name: Test
+
+on:
+    push:
+        branches: [ master ]
+    pull_request:
+        branches: [ master ]
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                neovim: [v0.4.4, nightly]
+        steps:
+            - uses: actions/checkout@v2
+            - uses: rhysd/action-setup-vim@v1
+              with:
+                  neovim: true
+                  version: ${{ matrix.neovim }}
+            - run: bash run-tests.sh

@@ -375,7 +375,7 @@ function packman.init()
 	packman.path = init_installation_path()
 end
 
-function packman.install(filename)
+function packman.install(filename, cb)
 	local plugins = read_packfile(filename)
 
 	local succeeded = 0
@@ -403,6 +403,11 @@ function packman.install(filename)
 			-- tasks finished
 			clear_timer(timer)
 			show_install_result(succeeded, failed, skipped)
+
+			if cb then
+				cb(result)
+			end
+
 			return
 		end
 
@@ -443,7 +448,7 @@ function packman.dump(filename)
 	notify:alert('packfile has been created as ' .. filename)
 end
 
-function packman.get(source)
+function packman.get(source, cb)
 	local dir, src
 	if type(source) == 'table' then
 		-- Source is on the first slot if it is a table, install it as a optional plugin.
@@ -472,6 +477,10 @@ function packman.get(source)
 				notify:alert('Failed! ' .. reason)
 			elseif code == task_return_code_skipped then
 				notify:alert('skipped! ' .. reason)
+			end
+
+			if cb then
+				cb(code, reason)
 			end
 		end)
 	)
