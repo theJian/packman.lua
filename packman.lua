@@ -27,6 +27,14 @@ local function clear_timer(timer)
 	end
 end
 
+local function make_package(name, pathname, optional)
+	return {
+		name = name,
+		pathname = pathname,
+		optional = optional,
+	}
+end
+
 local notify = {
 	buf = nil,
 	win = nil,
@@ -369,6 +377,23 @@ local function find_installed_files(pattern)
 	return files
 end
 
+local function get_installed_packages()
+	local packages = {}
+	local files_start = get_files_in_dir(get_dir_start())
+	local files_opt = get_files_in_dir(get_dir_opt())
+	for pathname in files_start:lines() do
+		local name = vim.api.nvim_call_function('fnamemodify', {pathname, ':t'})
+		table.insert(packages, make_package(name, pathname, false))
+	end
+
+	for pathname in files_opt:lines() do
+		local name = vim.api.nvim_call_function('fnamemodify', {pathname, ':t'})
+		table.insert(packages, make_package(name, pathname, true))
+	end
+
+	return packages
+end
+
 ---- Public Methods ----
 
 function packman.init()
@@ -566,6 +591,27 @@ function packman.helptags(pattern)
 		if isdir == 1 then
 			print(file)
 			vim.cmd("helptags " .. doc_dir)
+		end
+	end
+end
+
+function packman.list()
+	local packages = get_installed_packages()
+	local write = vim.api.nvim_out_write
+
+	local max_len = 0
+	for _, package in ipairs(packages) do
+		local name = package.name
+		if #name > max_len then max_len = #name end
+	end
+
+	for _, package in ipairs(packages) do
+		local name = package.name
+		write(name .. string.rep(' ', max_len - #name + 1))
+		if package.optional then
+			write('[optional]\n')
+		else
+			write('\n')
 		end
 	end
 end
