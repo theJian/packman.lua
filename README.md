@@ -74,6 +74,40 @@ Then you can sync `packfile` and install plugins from it. It reads from the same
 
 ## Functions
 
+#### get(source)
+
+Add a plugin.
+
+`source` is a git url where the plugin can be fetched from. A short form (`username/repo`) indicates it is from Github.
+
+#### update([name])
+
+Update plugins.
+
+`name` is the name of the plugin to be updated. If it is omitted, all plugins will be updated.
+
+#### remove([name])
+
+Remove plugins.
+
+`name` is the name of the plugin to be removed. If it is omitted, all plugins will be removed.
+
+#### install([packfile])
+
+Install plugins from a packfile.
+
+`packfile` is pathname of a packfile. `packfile` is optional, if it is omitted default pathname(`{directory_of_packman_lua}/packfile}`) will be used.
+
+#### dump([packfile])
+
+Generate a packfile from installed plugins.
+
+`packfile` is pathname of output file. If it is omitted default pathname(`{directory_of_packman_lua}/packfile}`) will be used.
+
+#### clear()
+
+Remove all installed plugins.
+
 #### list()
 
-Print a list of installed packages.
+Print a list of installed plugins.
