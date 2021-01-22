@@ -2,6 +2,11 @@
 
 [![test](https://github.com/theJian/packman.lua/workflows/Test/badge.svg)](https://github.com/theJian/packman.lua/actions)
 
+
+* [Getting Started](#getting-started)
+* [Functions](#functions)
+
+
 ## Getting Started
 
 #### Prerequisites
@@ -65,3 +70,10 @@ Then you can sync `packfile` and install plugins from it. It reads from the same
 ```
 :lua packman.install()
 ```
+
+
+## Functions
+
+#### list()
+
+Print a list of installed packages.
