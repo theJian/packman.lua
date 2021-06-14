@@ -6,5 +6,5 @@ test('dump', function()
 	local f = io.open(dumpfile, "r")
 	local file_exists = f~=nil
 	io.close(f)
-	assert(file_exists)
+	expect(file_exists)
 end)

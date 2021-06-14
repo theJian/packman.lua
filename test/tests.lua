@@ -76,23 +76,23 @@ try(function()
 			local is_async = nparams == 1
 			local is_failed = false
 
-			assert = function(condition)
+			expect = function(condition)
 				if not condition then
 					is_failed = true
 				end
 			end
 
 			f(function()
-				assert = nil
+				expect = nil
 				print_test_result(desc, is_failed)
 
-				coroutine.resume(self)
+				assert(coroutine.resume(self))
 			end)
 
 			if is_async then
 				coroutine.yield()
 			else
-				assert = nil
+				expect = nil
 				print_test_result(desc, is_failed)
 			end
 		end
