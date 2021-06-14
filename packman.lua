@@ -134,7 +134,7 @@ local function read_packfile(filename)
 
 	local plugins = {}
 
-	function opt() end
+	local opt = 'opt'
 	function Pack(p)
 		local source, optional
 
