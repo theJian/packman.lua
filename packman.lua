@@ -134,10 +134,6 @@ local function read_packfile(filename)
 
 	local plugins = {}
 
-	-- save the content and restore them after finishing reading packfile
-	local opt_saved = opt
-	local Pack_saved = Pack
-
 	function opt() end
 	function Pack(p)
 		local source, optional
@@ -154,10 +150,9 @@ local function read_packfile(filename)
 			optional = optional,
 		})
 	end
-	dofile(filename)
-
-	opt = opt_saved
-	Pack = Pack_saved
+	local chunk = assert(loadfile(filename))
+	setfenv(chunk, { Pack = Pack, opt = opt })
+	chunk()
 
 	return plugins
 end
