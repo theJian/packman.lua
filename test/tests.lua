@@ -21,7 +21,7 @@ try(function()
 	local test_remove = loadfile('test/test-remove.lua')
 	local test_install = loadfile('test/test-install.lua')
 
-	local test_modules = {test_get, test_dump, test_remove, test_install}
+	local test_modules = { test_get, test_dump, test_remove, test_install }
 	local test_result = { total = 0, failed = 0 }
 
 	local function print_test_result(desc, is_failed)
@@ -41,7 +41,8 @@ try(function()
 	local function fs_iter(path)
 		local fs = uv.fs_scandir(path)
 		return function()
-			return fs and uv.fs_scandir_next(fs)
+			if fs == nil then return nil end
+			return uv.fs_scandir_next(fs)
 		end
 	end
 
