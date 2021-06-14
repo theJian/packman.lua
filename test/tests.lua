@@ -41,7 +41,7 @@ try(function()
 	local function fs_iter(path)
 		local fs = uv.fs_scandir(path)
 		return function()
-			return uv.fs_scandir_next(fs)
+			return fs and uv.fs_scandir_next(fs)
 		end
 	end
 
