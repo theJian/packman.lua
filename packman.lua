@@ -135,7 +135,7 @@ local function read_packfile(filename)
 	local plugins = {}
 
 	local opt = 'opt'
-	function Pack(p)
+	local function Pack(p)
 		local source, optional
 
 		source = p[1]
@@ -389,6 +389,79 @@ local function get_installed_packages()
 	return packages
 end
 
+local function path_exists(path)
+	local call = vim.api.nvim_call_function
+	return not call('empty', {call('glob', {path})})
+end
+
+-------------- Pack ---------------
+local Pack = {
+	source = nil,
+	path = nil,
+	optional = false,
+}
+
+function Pack:new(o)
+	vim.validate{
+		source={o.source, 'string'},
+		optional={o.optional, 'boolean', true}
+	}
+
+	o = o or {}
+	o.source = normalize_source(o.source)
+	o.name = select_name_from_source(o.source)
+	if o.optional then
+		o.path = get_dir_opt() .. '/' .. o.name
+	else
+		o.path = get_dir_start() .. '/' .. o.name
+	end
+
+	setmetatable(o, self)
+	self.__index = self
+	return o
+end
+
+function Pack:postinstall(cmd)
+	self.cmd_postinstall = cmd
+end
+
+function Pack:handle_download_complete(return_code, reason)
+	-- TODO
+end
+
+local function download_pack(pack)
+	local source, path = pack.source, pack.path
+	if path_exists(path) then
+		pack.handle_download_complete(
+			task_return_code_failed,
+			'path already exists'
+		)
+		return
+	end
+
+	download(source, path, function(code)
+		local return_code, reason
+		if code == 0 then
+			return_code = task_return_code_ok
+		else
+			return_code, reason = task_return_code_failed, 'failed to install'
+		end
+
+		pack.handle_download_complete(return_code, reason)
+	end)
+end
+
+local function install_packs(...)
+	for _, pack in ipairs(arg) do
+		local path = pack.path
+		if path_exists(path) then
+
+		end
+	end
+
+	download_pack(pack)
+end
+
 ---- Public Methods ----
 
 function packman.init()
@@ -469,14 +542,16 @@ function packman.dump(filename)
 end
 
 function packman.get(source, cb)
-	local dir, src
+	local dir, src, opt
 	if type(source) == 'table' then
 		-- Source is on the first slot if it is a table, install it as a optional plugin.
 		dir = get_dir_opt()
 		src = source[1]
+		opt = true
 	else
 		dir = get_dir_start()
 		src = source
+		opt = false
 	end
 
 	local msg = string.format(' Installing from %s', src)
@@ -484,6 +559,12 @@ function packman.get(source, cb)
 	local timer = set_interval(500, function()
 		notify:show(spinner_sign() .. msg)
 	end)
+
+	local pack = Pack:new{
+		source = src,
+		optional = opt,
+		path = dir,
+	}
 
 	install_plugin(
 		src,
