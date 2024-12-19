@@ -109,7 +109,7 @@ local function select_name_from_source(source)
 end
 
 local function normalize_source(source)
-	if string.match(source, '^https?') or string.match(source, '^git') then
+	if string.match(source, '^https?:') or string.match(source, '^git@') then
 		return source
 	end
 
